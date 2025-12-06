@@ -40,6 +40,10 @@ public class HistogramPlugin extends Plugin
 	private HistogramOverlay histogramOverlay;
 	private ScheduledExecutorService pingThreads;
 
+	// track last time we saw combat so we can hide the overlay when idle
+	private long lastCombatMillis;
+	private boolean overlayVisible = true;
+
 	private int ping = -1;
 	private int checksTilPing = 0;
 
@@ -49,6 +53,9 @@ public class HistogramPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		histogramOverlay = new HistogramOverlay(config);
+		// start with overlay showing and timer freshly set
+		overlayVisible = true;
+		lastCombatMillis = System.currentTimeMillis();
 		overlayManager.add(histogramOverlay);
 
 		pingThreads = Executors.newScheduledThreadPool(20);
@@ -58,6 +65,11 @@ public class HistogramPlugin extends Plugin
 	protected void shutDown()
 	{
 		overlayManager.remove(histogramOverlay);
+		// kill ping threads to avoid leaks in dev runs
+		if (pingThreads != null)
+		{
+			pingThreads.shutdownNow();
+		}
 	}
 
 	@Subscribe
@@ -67,6 +79,26 @@ public class HistogramPlugin extends Plugin
 
 		if (config.useIdealTicks()) {
 			histogramOverlay.addEvent(EventType.IDEAL_TICK, 0.600f);
+		}
+
+		// simple combat check: if we have a target, keep the overlay alive
+		long now = System.currentTimeMillis();
+		if (client.getLocalPlayer() != null && client.getLocalPlayer().getInteracting() != null)
+		{
+			markCombatActivity(now);
+		}
+		else if (config.overlayTimeoutEnabled())
+		{
+			long elapsed = now - lastCombatMillis;
+			if (elapsed > config.overlayTimeoutSeconds() * 1000L)
+			{
+				hideOverlay();
+			}
+		}
+		else if (!config.overlayTimeoutEnabled() && !overlayVisible)
+		{
+			// timeout turned off? bring the overlay back right away
+			showOverlay();
 		}
 
 		pingThreads.schedule(this::updatePing, 0, TimeUnit.SECONDS);
@@ -95,6 +127,8 @@ public class HistogramPlugin extends Plugin
 		if (menuOption.equals("Use")) {
 			if (menuTarget.equals("Special Attack")) {
 				histogramOverlay.addEvent(EventType.SPECIAL_ATTACK, getInputDelay(EventType.SPECIAL_ATTACK), getServerDelay(EventType.SPECIAL_ATTACK));
+				// special attack click counts as combat, wake overlay
+				markCombatActivity(System.currentTimeMillis());
 				return;
 			}
 			else {
@@ -105,11 +139,13 @@ public class HistogramPlugin extends Plugin
 
 		if (removeFormatting(menuOption).equals("Use Special Attack")) {
 			histogramOverlay.addEvent(EventType.SPECIAL_ATTACK, getInputDelay(EventType.SPECIAL_ATTACK), getServerDelay(EventType.SPECIAL_ATTACK));
+			markCombatActivity(System.currentTimeMillis());
 			return;
 		}
 
 		if (menuOption.equals("Attack")) {
 			histogramOverlay.addEvent(EventType.ATTACK, getInputDelay(EventType.ATTACK), getServerDelay(EventType.ATTACK));
+			markCombatActivity(System.currentTimeMillis());
 			return;
 		}
 
@@ -136,6 +172,20 @@ public class HistogramPlugin extends Plugin
 		if (gameStateChanged.getGameState().getState() == HOP_GAMESTATE)
 		{
 			checksTilPing = 0;
+			// reset combat timer on hop/login so we don't instantly hide
+			lastCombatMillis = System.currentTimeMillis();
+			showOverlay();
+		}
+	}
+
+	@Subscribe
+	public void onHitsplatApplied(HitsplatApplied event)
+	{
+		// if we get hit, we are in combat, so keep the overlay awake
+		if (client.getLocalPlayer() != null && event.getActor() == client.getLocalPlayer())
+		{
+			// even if timeout is disabled or we were hidden, wake on damage
+			markCombatActivity(System.currentTimeMillis());
 		}
 	}
 
@@ -234,5 +284,30 @@ public class HistogramPlugin extends Plugin
 		}
 
 		return false;
+	}
+
+	// helper to refresh combat timer and wake overlay if needed
+	private void markCombatActivity(long now)
+	{
+		lastCombatMillis = now;
+		showOverlay();
+	}
+
+	private void showOverlay()
+	{
+		if (!overlayVisible)
+		{
+			overlayVisible = true;
+			histogramOverlay.setVisible(true);
+		}
+	}
+
+	private void hideOverlay()
+	{
+		if (overlayVisible)
+		{
+			overlayVisible = false;
+			histogramOverlay.setVisible(false);
+		}
 	}
 }

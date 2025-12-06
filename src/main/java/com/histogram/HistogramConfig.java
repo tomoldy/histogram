@@ -39,6 +39,39 @@ public interface HistogramConfig extends Config
 	)
 	String advancedSection = "Advanced";
 
+	@ConfigSection(
+			name = "Overlay Timeout",
+			description = "Hide the overlay when combat has been idle",
+			position = 4,
+			closedByDefault = true
+	)
+	String timeoutSection = "Timeout";
+
+	@ConfigItem(
+			keyName = "overlayTimeoutEnabled",
+			name = "Enable overlay timeout",
+			description = "Hide the histogram when combat has been idle",
+			section = timeoutSection,
+			position = 0
+	)
+	default boolean overlayTimeoutEnabled()
+	{
+		// keep this opt-in so users don't wonder where the overlay went
+		return false;
+	}
+
+	@ConfigItem(
+			keyName = "overlayTimeoutSeconds",
+			name = "Timeout seconds",
+			description = "How long after last combat before hiding the overlay",
+			section = timeoutSection,
+			position = 1
+	)
+	default int overlayTimeoutSeconds()
+	{
+		return 12;
+	}
+
 	@ConfigItem(
 			keyName = "panelsize",
 			name = "Panel size",

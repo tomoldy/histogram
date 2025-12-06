@@ -39,7 +39,6 @@ public class HistogramPlugin extends Plugin {
 
 	// track last time we saw combat so we can hide the overlay when idle
 	private long lastCombatMillis;
-	private volatile boolean overlayVisible = true;
 
 	private int ping = -1;
 	private int checksTilPing = 0;
@@ -50,7 +49,6 @@ public class HistogramPlugin extends Plugin {
 	protected void startUp() throws Exception {
 		histogramOverlay = new HistogramOverlay(config);
 		// start with overlay showing and timer freshly set
-		overlayVisible = true;
 		lastCombatMillis = System.currentTimeMillis();
 		overlayManager.add(histogramOverlay);
 
@@ -83,7 +81,7 @@ public class HistogramPlugin extends Plugin {
 			if (elapsed > config.overlayTimeoutSeconds() * 1000L) {
 				hideOverlay();
 			}
-		} else if (!config.overlayTimeoutEnabled() && !overlayVisible) {
+		} else if (!config.overlayTimeoutEnabled() && histogramOverlay != null && !histogramOverlay.isVisible()) {
 			// timeout turned off? bring the overlay back right away
 			showOverlay();
 		}
@@ -274,15 +272,13 @@ public class HistogramPlugin extends Plugin {
 	}
 
 	private void showOverlay() {
-		if (!overlayVisible) {
-			overlayVisible = true;
+		if (histogramOverlay != null && !histogramOverlay.isVisible()) {
 			histogramOverlay.setVisible(true);
 		}
 	}
 
 	private void hideOverlay() {
-		if (overlayVisible) {
-			overlayVisible = false;
+		if (histogramOverlay != null && histogramOverlay.isVisible()) {
 			histogramOverlay.setVisible(false);
 		}
 	}

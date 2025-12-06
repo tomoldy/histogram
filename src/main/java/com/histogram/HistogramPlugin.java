@@ -42,7 +42,7 @@ public class HistogramPlugin extends Plugin
 
 	// track last time we saw combat so we can hide the overlay when idle
 	private long lastCombatMillis;
-	private boolean overlayVisible = true;
+	private volatile boolean overlayVisible = true;
 
 	private int ping = -1;
 	private int checksTilPing = 0;

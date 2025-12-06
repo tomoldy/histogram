@@ -39,53 +39,53 @@ public class HistogramPlugin extends Plugin {
 
 	// track last time we saw combat so we can hide the overlay when idle
 	private long lastCombatMillis;
+	private volatile boolean overlayVisible = true;
 
-	
 	private int ping = -1;
 	private int checksTilPing = 0;
 
 	private static final int HOP_GAMESTATE = 45;
 
-	@Override p
-		
+	@Override
+	protected void startUp() throws Exception {
 		histogramOverlay = new HistogramOverlay(config);
-		// start with overlay showing and timer freshl
+		// start with overlay showing and timer freshly set
 		overlayVisible = true;
-
+		lastCombatMillis = System.currentTimeMillis();
 		overlayManager.add(histogramOverlay);
 
 		pingThreads = Executors.newScheduledThreadPool(20);
 	}
- @Override
-	protected void shutDown()
-	{
-		overlayManager.remove(hi // kill ping threads to avoid leaks in dev runs
-		if (pingThreads != null)
-		{
+
+	@Override
+	protected void shutDown() {
+		overlayManager.remove(histogramOverlay);
+		// kill ping threads to avoid leaks in dev runs
+		if (pingThreads != null) {
 			pingThreads.shutdownNow();
 		}
 	}
- @Subscribe
-	public void onGameTick(GameTick tick)
-	{
+
+	@Subscribe
+	public void onGameTick(GameTick tick) {
 		histogramOverlay.addEvent(EventType.TICK);
 
 		if (config.useIdealTicks()) {
 			histogramOverlay.addEvent(EventType.IDEAL_TICK, 0.600f);
 		}
 
-		// simple combat check: if we have a target, keep the overlay alive long now = System.currentTimeMillis();
-		if (client.getLocalPlayer() != null && client.getLocalPlayer().getInteracting() != null)
-		{ 	markCombatActivity(now); }
-		else if (config.overlayTimeoutEnabled())
-		{ long elapsed = now - lastCombatMillis;
-			if (elapsed > config.overlayTimeoutSeconds() * 1000L)
-			{
-			 	} }
-			lse if (!config.overlayTimeoutEnabled() && !overlayVisib
-			
-			
-
+		// simple combat check: if we have a target, keep the overlay alive
+		long now = System.currentTimeMillis();
+		if (client.getLocalPlayer() != null && client.getLocalPlayer().getInteracting() != null) {
+			markCombatActivity(now);
+		} else if (config.overlayTimeoutEnabled()) {
+			long elapsed = now - lastCombatMillis;
+			if (elapsed > config.overlayTimeoutSeconds() * 1000L) {
+				hideOverlay();
+			}
+		} else if (!config.overlayTimeoutEnabled() && !overlayVisible) {
+			// timeout turned off? bring the overlay back right away
+			showOverlay();
 		}
 
 		pingThreads.schedule(this::updatePing, 0, TimeUnit.SECONDS);
@@ -95,9 +95,9 @@ public class HistogramPlugin extends Plugin {
 	public void onMenuOptionClicked(MenuOptionClicked e) {
 		String menuOption = removeFormatting(e.getMenuOption());
 		String menuTarget = removeFormatting(e.getMenuTarget());
-				
 
-		if (menuOption.equals("Wield") || menuOption.equals("Wear") || menuOption.equals("Remove") || menuOption.equals("Hold")) {
+		if (menuOption.equals("Wield") || menuOption.equals("Wear") || menuOption.equals("Remove")
+				|| menuOption.equals("Hold")) {
 			histogramOverlay.addEvent(EventType.EQUIP, getInputDelay(EventType.EQUIP), getServerDelay(EventType.EQUIP));
 			return;
 		}
@@ -113,41 +113,40 @@ public class HistogramPlugin extends Plugin {
 		}
 
 		if (menuOption.equals("Use")) {
-						
 			if (menuTarget.equals("Special Attack")) {
-				histogramOverlay.addEvent(EventType.SPECIAL_ATTACK, getInputDelay(EventType.SPECIAL_ATTACK), getServerDelay(EventType.SPECIAL_ATTACK));
+				histogramOverlay.addEvent(EventType.SPECIAL_ATTACK, getInputDelay(EventType.SPECIAL_ATTACK),
+						getServerDelay(EventType.SPECIAL_ATTACK));
 				// special attack click counts as combat, wake overlay
-				 	return;
-			}
-			else {
+				markCombatActivity(System.currentTimeMillis());
+				return;
+			} else {
 				histogramOverlay.addEvent(EventType.USE, getInputDelay(EventType.USE), getServerDelay(EventType.USE));
 				return;
 			}
 		}
 
-					
 		if (removeFormatting(menuOption).equals("Use Special Attack")) {
-			histogramOverlay.addEvent(EventType.SPECIAL_ATTACK, getInputDelay(EventType.SPECIAL_ATTACK), getServerDelay(EventType.SPECIAL_ATTACK));
+			histogramOverlay.addEvent(EventType.SPECIAL_ATTACK, getInputDelay(EventType.SPECIAL_ATTACK),
+					getServerDelay(EventType.SPECIAL_ATTACK));
 			markCombatActivity(System.currentTimeMillis());
 			return;
 		}
 
-					
 		if (menuOption.equals("Attack")) {
-			histogramOverlay.addEvent(EventType.ATTACK, getInputDelay(EventType.ATTACK), getServerDelay(EventType.ATTACK));
+			histogramOverlay.addEvent(EventType.ATTACK, getInputDelay(EventType.ATTACK),
+					getServerDelay(EventType.ATTACK));
 			markCombatActivity(System.currentTimeMillis());
 			return;
 		}
 
-					
 		if (menuOption.equals("Activate") || menuOption.equals("Deactivate")) {
-			// 
-			histogramOverlay.addEvent(EventType.PRAYER, getInputDelay(EventType.PRAYER), getServerDelay(EventType.PRAYER));
-			// prayer toggles are a strong hint the player is “doing stuff”, so wake the overlay too
+			histogramOverlay.addEvent(EventType.PRAYER, getInputDelay(EventType.PRAYER),
+					getServerDelay(EventType.PRAYER));
+			// prayer toggles are a strong hint the player is “doing stuff”, so wake the
+			// overlay too
 			markCombatActivity(System.currentTimeMillis());
 			return;
 		}
-				
 
 		if (handleCustomConfig(menuOption, menuTarget, config.custom1Interaction(), config.custom1Target(),
 				EventType.CUSTOM_1))
@@ -161,80 +160,81 @@ public class HistogramPlugin extends Plugin {
 		if (handleCustomConfig(menuOption, menuTarget, config.custom4Interaction(), config.custom4Target(),
 				EventType.CUSTOM_4))
 			return;
-		if (handleCustomConfig(menuOption, menuTarget, config.custom5Interaction(), config.custom5Target(), EventType.CUSTOM_5))
+		if (handleCustomConfig(menuOption, menuTarget, config.custom5Interaction(), config.custom5Target(),
+				EventType.CUSTOM_5))
 			return;
 	}
- @Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged) 
-		if (gameStateChanged.getGameState().getState() == HOP_GAMESTATE)
-		{
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged gameStateChanged) {
+		if (gameStateChanged.getGameState().getState() == HOP_GAMESTATE) {
 			checksTilPing = 0;
 			// reset combat timer on hop/login so we don't instantly hide
 			lastCombatMillis = System.currentTimeMillis();
 			showOverlay();
 		}
 	}
- @Subscribe
-	public void onHitsplatApplied(HitsplatApplied event)
-	{ // if we get hit, we are in combat, so keep the overlay awake
-		if (client.getLocalPlayer() != null && event.getActor() == client.getLocalPlayer())
-		{
+
+	@Subscribe
+	public void onHitsplatApplied(HitsplatApplied event) {
+		// if we get hit, we are in combat, so keep the overlay awake
+		if (client.getLocalPlayer() != null && event.getActor() == client.getLocalPlayer()) {
 			// even if timeout is disabled or we were hidden, wake on damage
 			markCombatActivity(System.currentTimeMillis());
 		}
 	}
- @Provides
-	HistogramConfig provideConfig(ConfigManager configManager)
-	{
+
+	@Provides
+	HistogramConfig provideConfig(ConfigManager configManager) {
 		return configManager.getConfig(HistogramConfig.class);
-	} 
-	private float getInputDelay(EventType event)
-	{
+	}
+
+	private float getInputDelay(EventType event) {
 		float delay = (ping / 1000f);
 		return Math.min(delay, (config.pingMax() / 1000f));
-	} 
-	private void updatePing( 
-		if (checksTilPing == 0)
-		{
-			int currentping = send 
-			if (currentping != -1)
-			{
+	}
+
+	private void updatePing() {
+		if (checksTilPing == 0) {
+			int currentping = sendPing();
+
+			if (currentping != -1) {
 				ping = currentping;
-			 	} }
-		else
-		{
+				checksTilPing = config.pingCount() - 1;
+			}
+		} else {
 			checksTilPing--;
 		}
-	} 
-	private int sendPing()
-	{
+	}
+
+	private int sendPing() {
 		return Ping.ping(worldService.getWorlds().findWorld(client.getWorld()));
-	} 
-	private int getPlayerCount()
-	{
+	}
+
+	private int getPlayerCount() {
 		return worldService.getWorlds().findWorld(client.getWorld()).getPlayers();
-	} 
-	private String removeFormatting(String raw)
-	{
+	}
+
+	private String removeFormatting(String raw) {
 		return raw.replaceAll("<[^>]*>", "");
-	} 
-	private float getServerDelay(EventType type)
-	{
-		int playercou 
-		witch (type
-			
-		case EQUI
-			return config.equipConst() / 1000f + (config.equipMult() / 1000f * playercount / 100
+	}
+
+	private float getServerDelay(EventType type) {
+		int playercount = getPlayerCount();
+
+		switch (type) {
+		case EQUIP:
+			return config.equipConst() / 1000f + (config.equipMult() / 1000f * playercount / 1000f);
 		case EAT:
 			return config.eatConst() / 1000f + (config.eatMult() / 1000f * playercount / 1000f);
-		case MOVE
-			return config.moveConst() / 1000f + (config.moveMult() / 1000f * playercount / 1000f
+		case MOVE:
+			return config.moveConst() / 1000f + (config.moveMult() / 1000f * playercount / 1000f);
 		case USE:
 			return config.useConst() / 1000f + (config.useMult() / 1000f * playercount / 1000f);
 		case ATTACK:
 			return config.attackConst() / 1000f + (config.attackMult() / 1000f * playercount / 1000f);
-		case SPECIAL
-			return config.specialattackConst() / 1000f + (config.specialattackMult() / 1000f * playerc
+		case SPECIAL_ATTACK:
+			return config.specialattackConst() / 1000f + (config.specialattackMult() / 1000f * playercount / 1000f);
 		case PRAYER:
 			return config.prayerConst() / 1000f + (config.prayerMult() / 1000f * playercount / 1000f);
 		case CUSTOM_1:
@@ -245,20 +245,20 @@ public class HistogramPlugin extends Plugin {
 			return config.custom3Const() / 1000f + (config.custom3Mult() / 1000f * playercount / 1000f);
 		case CUSTOM_4:
 			return config.custom4Const() / 1000f + (config.custom4Mult() / 1000f * playercount / 1000f);
-		case CUS
+		case CUSTOM_5:
 			return config.custom5Const() / 1000f + (config.custom5Mult() / 1000f * playercount / 1000f);
-			default:
-				return 0;
+		default:
+			return 0;
 		}
 	}
-			 
-	private boolean handleCustomConfig(String menuOption, String menuTarget, String option, String target, EventType type)
-	{
+
+	private boolean handleCustomConfig(String menuOption, String menuTarget, String option, String target,
+			EventType type) {
 		if (option.isEmpty() && target.isEmpty())
-			return false; 
-		if (option.isEmpty() || option.equals(menuOption)) 
-			if (target.isEmpty() || target.equals(menuTarget))
-			{
+			return false;
+
+		if (option.isEmpty() || option.equals(menuOption)) {
+			if (target.isEmpty() || target.equals(menuTarget)) {
 				histogramOverlay.addEvent(type, getInputDelay(type), getServerDelay(type));
 				return true;
 			}
@@ -266,23 +266,23 @@ public class HistogramPlugin extends Plugin {
 
 		return false;
 	}
- // helper to refresh combat timer and wake overlay if needed
-	private void markCombatActivity(long now)
-	{
+
+	// helper to refresh combat timer and wake overlay if needed
+	private void markCombatActivity(long now) {
 		lastCombatMillis = now;
 		showOverlay();
-	} 
-		rivate void showOverlay() 
-			f (!overlayVisible)
-		{
-		
+	}
 
-		} }
-		 r
-			
-		i
-		
-	
+	private void showOverlay() {
+		if (!overlayVisible) {
+			overlayVisible = true;
+			histogramOverlay.setVisible(true);
+		}
+	}
+
+	private void hideOverlay() {
+		if (overlayVisible) {
+			overlayVisible = false;
 			histogramOverlay.setVisible(false);
 		}
 	}

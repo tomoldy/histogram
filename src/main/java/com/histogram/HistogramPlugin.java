@@ -151,6 +151,8 @@ public class HistogramPlugin extends Plugin
 
 		if (menuOption.equals("Activate") || menuOption.equals("Deactivate")) {
 			histogramOverlay.addEvent(EventType.PRAYER, getInputDelay(EventType.PRAYER), getServerDelay(EventType.PRAYER));
+			// prayer toggles are a strong hint the player is “doing stuff”, so wake the overlay too
+			markCombatActivity(System.currentTimeMillis());
 			return;
 		}
 

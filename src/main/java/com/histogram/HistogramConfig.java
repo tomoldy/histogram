@@ -67,6 +67,7 @@ public interface HistogramConfig extends Config
 			section = timeoutSection,
 			position = 1
 	)
+	@Range(min = 1, max = 600)
 	default int overlayTimeoutSeconds()
 	{
 		return 12;

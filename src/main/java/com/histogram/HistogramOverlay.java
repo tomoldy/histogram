@@ -28,6 +28,8 @@ class HistogramOverlay extends Overlay
 
     private long lastnano;
     private float delta;
+    // simple visibility gate so the plugin can hide us without removing the overlay
+    private volatile boolean visible = true;
 
     HistogramOverlay(HistogramConfig config)
     {
@@ -61,6 +63,12 @@ class HistogramOverlay extends Overlay
 
     @Override
     public Dimension render(Graphics2D graphics) {
+        // bail out early if plugin told us to hide
+        if (!visible)
+        {
+            return null;
+        }
+
         graphics.setColor(config.bgColor());
         graphics.fillRect(0, 0, config.panelSize().width, config.panelSize().height);
 
@@ -198,6 +206,17 @@ class HistogramOverlay extends Overlay
         long nano = System.nanoTime();
         delta = (nano - lastnano) / 1000000000f;
         lastnano = nano;
+    }
+
+    // let the plugin flip overlay visibility on/off
+    public void setVisible(boolean visible)
+    {
+        this.visible = visible;
+    }
+
+    public boolean isVisible()
+    {
+        return visible;
     }
 
     public void updateEvents()
